@@ -2,7 +2,7 @@ use std::{
     borrow::{BorrowMut, Cow},
     collections::BTreeMap,
     future::Future,
-    pin::Pin,
+    pin::Pin, sync::Arc,
 };
 
 use crate::{
@@ -16,13 +16,19 @@ use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 
 pub mod http;
-
-pub trait Adaptor: 'static + Send + Sync {
-    fn spec(&self) -> AdaptorSpecifier;
-    fn post_message(&self, message: &Message, addr: &str) -> crate::Result<()>;
-    fn get_message(&self, page: QueryPolicy) -> Queried<Message>;
+pub trait Adaptor {
+    type Server: AdaptorServer;
+    type Client: AdaptorClient;
+}
+pub trait AdaptorServer: 'static + Send + Sync {
+    type Config;
+    fn new(config: &Self::Config, host: Arc<Node>) -> Self;
 }
 
+pub trait AdaptorClient: 'static + Send + Sync {
+    fn spec(&self) -> AdaptorSpecifier;
+    fn post_message(&self, message: &Message, addr: &str) -> crate::Result<()>;
+}
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Deserialize)]
 #[serde(try_from = "String")]
 pub struct AdaptorSpecifier {
@@ -100,21 +106,21 @@ impl Default for AdaptorRouter {
 }
 
 pub struct WrappedAdaptor {
-    pub adaptor: Box<dyn Adaptor>,
+    pub adaptor: Box<dyn AdaptorClient>,
     // task_handle: tokio::task::JoinHandle<crate::Result<()>>,
 }
 
 impl AdaptorRouter {
-    pub fn wrap<A: Adaptor>(&self, adaptor: A) -> WrappedAdaptor {
+    pub fn wrap<A: AdaptorClient>(&self, adaptor: A) -> WrappedAdaptor {
         WrappedAdaptor {
             adaptor: Box::new(adaptor),
             // task_handle,
         }
     }
-    pub fn get(&self, spec: &AdaptorSpecifier) -> Option<&dyn Adaptor> {
+    pub fn get_client(&self, spec: &AdaptorSpecifier) -> Option<&dyn AdaptorClient> {
         self.router.get(spec).map(|w| w.adaptor.as_ref())
     }
-    pub fn register<A: Adaptor>(&mut self, adaptor: A) {
+    pub fn register<A: AdaptorClient>(&mut self, adaptor: A) {
         let spec = adaptor.spec();
         let wrapper = self.wrap(adaptor);
         self.router.insert(spec, wrapper);

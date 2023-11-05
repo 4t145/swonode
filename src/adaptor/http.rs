@@ -1,14 +1,10 @@
 const ID: &str = "http";
-
+mod client;
+mod server;
 pub struct Client {}
-
-pub struct Server {
-    handle: JoinHandle<()>,
-}
 
 pub struct Http {
     client: reqwest::Client,
-    server: Server,
 }
 
 use axum::{
@@ -28,43 +24,24 @@ use crate::{
     node, Node, node_opt,
 };
 
-use super::{Adaptor, AdaptorSpecifier};
+use self::server::Server;
 
-pub async fn post_message(Json(message): Json<Message>) -> Json<crate::Result<Receipt>> {
-    fn post_message_handler(message: Message) -> crate::Result<Receipt> {
-        let node = node_opt()?;
-        node.recieve(&message)
-    }
-    Json(post_message_handler(message))
-}
+use super::{AdaptorServer, AdaptorSpecifier, AdaptorClient};
+
+
 impl Http {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::default(),
-            server: Server::start(),
+            // server: Server::start(),
         }
     }
 }
-impl Server {
-    pub fn start() -> Server {
-        let handle = tokio::spawn(async {
-            let app = Router::new()
-                // `GET /` goes to `root`
-                // .route("/", get(root))
-                // `POST /users` goes to `create_user`
-                .route("/message", post(post_message));
 
-            // run our app with hyper, listening globally on port 3000
-            axum::Server::bind(&SocketAddr::from(([127, 0, 0, 1], 3000)))
-                .serve(app.into_make_service())
-                .await
-                .expect("msg");
-        });
-        Server { handle }
-    }
-}
 
-impl Adaptor for Http {
+
+
+impl AdaptorClient for Http {
     fn spec(&self) -> AdaptorSpecifier {
         AdaptorSpecifier::new(ID)
     }
@@ -102,11 +79,6 @@ impl Adaptor for Http {
         );
         Ok(())
     }
-
-    fn get_message(&self, page: crate::query::QueryPolicy) -> crate::query::Queried<Message> {
-        todo!()
-    }
-
     // fn recv_stream(&self) -> std::pin::Pin<Box<dyn futures::Stream<Item = Message> + Send>> {
     //     let chan =
     //     todo!()

@@ -49,6 +49,13 @@ pub struct Node {
     pub database: Arc<dyn Database>,
 }
 
+pub struct NodeBuilder {
+    endpoint: EndPoint,
+    trust: Vec<EndPoint>,
+
+}
+
+
 impl Node {
     pub fn new(ep: EndPoint, db: impl Database) -> Self {
         let db = Arc::new(db);
@@ -102,7 +109,7 @@ impl Node {
     }
 
     pub fn send(&self, message: &Message, spec: &AdaptorSpecifier, addr: &str) -> Result<()> {
-        let a = self.adaptors.get(spec).ok_or(Error::from_message(
+        let a = self.adaptors.get_client(spec).ok_or(Error::from_message(
             format!("adaptor {} not found", spec),
             ErrorCode::NotFound,
         ))?;
